@@ -1,12 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { Upload, Mic, MicOff } from 'lucide-react';
-import logoImage from './assets/Logo.png';
+import backgroundImage from './assets/bcg.png';
+import logoimg from './assets/Logo.png'
 
-export default function PhotoUploadInterface() {
+interface PhotoUploadInterfaceProps {
+  onSubmit: (images: string[], description: string) => void;
+}
+
+export default function PhotoUploadInterface({ onSubmit }: PhotoUploadInterfaceProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [thoughts, setThoughts] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
@@ -105,6 +109,18 @@ export default function PhotoUploadInterface() {
     }
   };
 
+  const handleSubmit = () => {
+    if (previewUrls.length === 0) {
+      alert('Please upload at least one image');
+      return;
+    }
+    if (!thoughts.trim()) {
+      alert('Please add a description');
+      return;
+    }
+    onSubmit(previewUrls, thoughts);
+  };
+
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);
@@ -134,10 +150,11 @@ export default function PhotoUploadInterface() {
 
   const handleFile = (file: File) => {
     if (file.type.startsWith('image/')) {
-      setUploadedFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
-        setPreviewUrl(e.target?.result as string);
+        if (e.target?.result) {
+          setPreviewUrls(prev => [...prev, e.target!.result as string]);
+        }
       };
       reader.readAsDataURL(file);
     } else {
@@ -145,33 +162,23 @@ export default function PhotoUploadInterface() {
     }
   };
 
+  const removeImage = (index: number) => {
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSelectClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleSubmit = () => {
-    if (!uploadedFile) {
-      alert('Please upload an image first');
-      return;
-    }
-    
-    // Handle form submission here
-    console.log('Submitting:', {
-      file: uploadedFile,
-      thoughts: thoughts
-    });
-    
-    // You can add your submission logic here
-    // For example, sending to an API endpoint
-    alert('Form submitted successfully!');
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-200 via-cyan-200 to-blue-200 flex flex-col items-center justify-center p-6">
+    <div 
+      className="min-h-screen bg-cover bg-center bg-no-repeat flex flex-col items-center justify-center p-6"
+      style={{ backgroundImage: `url(${backgroundImage})` }}
+    >
       {/* Logo */}
       <div className="absolute top-6 left-6">
-        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg">
-          <img src={logoImage} alt="Logo" className='w-full h-full object-cover'/>
+        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg overflow-hidden">
+          <img src={logoimg} alt="Logo" className="w-full h-full object-cover" />
         </div>
       </div>
 
@@ -190,50 +197,71 @@ export default function PhotoUploadInterface() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {!previewUrl ? (
+          {!previewUrls.length ? (
             <div className="flex flex-col items-center justify-center">
               <Upload className="w-16 h-16 mb-6 text-gray-700" strokeWidth={2} />
               <p className="text-2xl font-medium text-gray-800 mb-4">
-                Drag and Drop here
+                Drag and Drop images here
               </p>
               <p className="text-xl text-gray-600 mb-6">or</p>
               <button
                 onClick={handleSelectClick}
                 className="bg-gradient-to-r from-teal-400 to-cyan-400 hover:from-teal-500 hover:to-cyan-500 text-white px-12 py-4 rounded-lg text-xl font-medium transition-all duration-200 shadow-md hover:shadow-lg"
               >
-                Select file
+                Select files
               </button>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 onChange={handleFileSelect}
                 className="hidden"
               />
             </div>
           ) : (
-            <div className="flex flex-col items-center">
-              <img
-                src={previewUrl}
-                alt="Preview"
-                className="max-h-96 rounded-lg shadow-lg mb-4"
+            <div className="flex flex-col items-center w-full">
+              <div className="grid grid-cols-2 gap-4 w-full mb-6">
+                {previewUrls.map((url, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={url}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-48 object-cover rounded-lg shadow-md"
+                    />
+                    <button
+                      onClick={() => removeImage(index)}
+                      className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                
+                <button
+                  onClick={handleSelectClick}
+                  className="h-48 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 hover:border-teal-500 hover:text-teal-500 transition-colors"
+                >
+                  <Upload className="w-8 h-8 mb-2" />
+                  <span>Add another</span>
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
               />
-              <p className="text-lg text-gray-700 mb-2">{uploadedFile?.name}</p>
-              <button
-                onClick={() => {
-                  setPreviewUrl(null);
-                  setUploadedFile(null);
-                }}
-                className="text-teal-500 hover:text-teal-600 font-medium"
-              >
-                Remove & upload another
-              </button>
             </div>
           )}
         </div>
 
         {/* Thoughts Input */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 mb-6">
           <div className="flex-1 relative">
             <textarea
               value={thoughts + (interimText ? ' ' + interimText : '')}
@@ -266,7 +294,7 @@ export default function PhotoUploadInterface() {
         </div>
         
         {isListening && (
-          <p className="text-center mt-2 text-gray-700 text-sm">
+          <p className="text-center mb-4 text-gray-700 text-sm">
             🎤 Listening... Speak clearly into your microphone
           </p>
         )}
@@ -274,14 +302,14 @@ export default function PhotoUploadInterface() {
         {/* Submit Button */}
         <button
           onClick={handleSubmit}
-          disabled={!uploadedFile}
-          className={`w-full mt-6 py-4 rounded-lg text-xl font-medium transition-all duration-200 shadow-md hover:shadow-lg ${
-            uploadedFile
-              ? 'bg-gradient-to-r from-teal-400 to-cyan-400 hover:from-teal-500 hover:to-cyan-500 text-white'
+          disabled={previewUrls.length === 0 || !thoughts.trim()}
+          className={`w-full py-4 rounded-lg text-xl font-medium shadow-lg transition-all duration-200 ${
+            previewUrls.length > 0 && thoughts.trim()
+              ? 'bg-gradient-to-r from-teal-400 to-cyan-400 hover:from-teal-500 hover:to-cyan-500 text-white hover:shadow-xl'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}
         >
-          Submit
+          Continue to Editor
         </button>
       </div>
     </div>
