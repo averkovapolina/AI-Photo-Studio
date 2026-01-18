@@ -26,6 +26,8 @@ export default function EditorPage({
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
   
   // Settings state - Aspect Ratio and Resolution with multi-select
   const [aspectRatio, setAspectRatio] = useState<string>('landscape_4_3');
@@ -56,6 +58,26 @@ export default function EditorPage({
     { label: 'Gemini 2.5 Flash', value: 'fal-ai/gemini-25-flash-image/edit' },
     { label: 'Flux 2 Pro', value: 'fal-ai/flux-2-pro/edit' },
     { label: 'Nano Banana Pro', value: 'fal-ai/nano-banana-pro/edit' },
+  ];
+
+  // Popular prompt suggestions for interior and decor
+  const popularTags = [
+    'modern interior', 'minimalist design', 'scandinavian style', 'luxury decor',
+    'cozy atmosphere', 'natural lighting', 'neutral colors', 'warm tones',
+    'contemporary furniture', 'vintage elements', 'industrial design', 'bohemian style',
+    'elegant decor', 'sustainable materials', 'open space', 'high ceilings',
+    'wooden floors', 'marble surfaces', 'plants', 'textured walls',
+    'geometric patterns', 'art deco', 'mid-century modern', 'rustic charm'
+  ];
+
+  // Common prompt templates for interior design autocomplete
+  const promptTemplates = [
+    'a modern', 'a minimalist', 'a luxurious', 'a cozy',
+    'a contemporary', 'a scandinavian', 'an elegant', 'a vintage',
+    'with', 'featuring', 'including', 'decorated with',
+    'in', 'room with', 'space with', 'interior with',
+    'living room', 'bedroom', 'kitchen', 'bathroom',
+    'dining area', 'home office', 'studio apartment', 'penthouse'
   ];
 
   // Map aspect ratio to size format
@@ -164,6 +186,44 @@ export default function EditorPage({
     if (files) {
       Array.from(files).forEach(file => handleFile(file));
     }
+  };
+
+  // Handle prompt input with autocomplete
+  const handlePromptChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setThoughts(value);
+
+    // Show autocomplete suggestions based on current word
+    const words = value.split(' ');
+    const currentWord = words[words.length - 1].toLowerCase().trim();
+
+    if (currentWord.length > 0 && !currentWord.includes(' ')) {
+      const suggestions = promptTemplates.filter(template =>
+        template.toLowerCase().startsWith(currentWord) && 
+        template.toLowerCase() !== currentWord
+      ).slice(0, 5);
+      setAutocompleteSuggestions(suggestions);
+      setShowSuggestions(suggestions.length > 0);
+    } else {
+      setAutocompleteSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  // Add tag to prompt
+  const addTagToPrompt = (tag: string) => {
+    const currentValue = thoughts.trim();
+    const newValue = currentValue ? `${currentValue}, ${tag}` : tag;
+    setThoughts(newValue);
+  };
+
+  // Apply autocomplete suggestion
+  const applySuggestion = (suggestion: string) => {
+    const words = thoughts.split(' ');
+    words[words.length - 1] = suggestion;
+    setThoughts(words.join(' '));
+    setShowSuggestions(false);
+    setAutocompleteSuggestions([]);
   };
 
   const handleFile = (file: File) => {
@@ -397,17 +457,36 @@ export default function EditorPage({
             <div className="relative">
               <textarea
                 value={thoughts + (interimText ? ' ' + interimText : '')}
-                onChange={(e) => setThoughts(e.target.value)}
-                placeholder="Describe what you want to create..."
+                onChange={handlePromptChange}
+                onFocus={() => setShowSuggestions(autocompleteSuggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                placeholder="Describe your interior design... (e.g., 'a modern minimalist living room with natural light')"
                 className="w-full bg-white rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-400 resize-none border border-gray-300"
                 rows={4}
                 disabled={isGenerating}
               />
               {interimText && (
-                <span className="absolute bottom-3 right-3 text-xs text-gray-400 italic">
+                <span className="absolute bottom-3 right-12 text-xs text-gray-400 italic">
                   (speaking...)
                 </span>
               )}
+              
+              {/* Autocomplete suggestions */}
+              {showSuggestions && autocompleteSuggestions.length > 0 && (
+                <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-30 max-h-40 overflow-y-auto">
+                  {autocompleteSuggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => applySuggestion(suggestion)}
+                      className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-teal-50 transition-colors"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <button 
                 onClick={toggleListening}
                 className={`absolute bottom-2 right-2 rounded-full w-8 h-8 flex items-center justify-center transition-all ${
@@ -424,6 +503,24 @@ export default function EditorPage({
                 )}
               </button>
             </div>
+            
+            {/* Popular tags */}
+            <div className="mt-3">
+              <div className="flex flex-wrap gap-1.5">
+                {popularTags.slice(0, 10).map((tag, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => addTagToPrompt(tag)}
+                    className="px-2 py-1 text-xs bg-gray-100 hover:bg-teal-100 text-gray-600 hover:text-teal-700 rounded-md transition-colors border border-gray-200 hover:border-teal-300"
+                    title={`Add "${tag}" to prompt`}
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {isListening && (
               <p className="text-xs text-gray-500 mt-2">
                 🎤 Listening...
